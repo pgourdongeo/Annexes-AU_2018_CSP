@@ -1,0 +1,1415 @@
+---
+title: "Comment les retraités façonnent la structure sociale des villes françaises"
+subtitle: "ANNEXES"
+date: "`r Sys.Date()`"
+author: Paul Gourdon, Matthieu Delage, Benoit Conti, Laurent Terral, Julie Fromentin, Sophie Baudet-Michel
+output: 
+  rmdformats::robobook:
+    self_contained: true
+    thumbnails: true
+    lightbox: true
+    gallery: false
+    highlight: tango
+    number_sections: true
+---
+
+```{=html}
+<style>
+body {
+text-align: justify}
+
+.book .book-body .page-inner {
+    max-width: 1800px;
+}
+</style>
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE, warning=FALSE, fig.path = "img/")
+
+```
+
+# Présentation du document d'annexes
+
+Ce document constitue une annexe à l'article **Comment les retraités façonnent la structure sociale des villes françaises**, à paraître dans la revue *Métropolitiques*. [LIEN à venir]
+
+Il a pour objectif de fournir le code source et des documents
+complémentaires de la typologie présentée dans l'article.
+
+Les données sont disponibles sur ce dépôt : [LIEN à venir]
+
+# Les données
+
+L'analyse repose sur une partition de la population des `15 ans et plus`
+en 26 catégories (dites PCS détaillées), regroupées en 7 groupes (dites
+PCS regroupées). Celle-ci reprend la plupart des 24 postes du niveau 2
+de la nomenclature PCS (`CS2`) à l'exception des retraités qui sont
+répartis en 6 postes selon leur ancienne PCS déclarée (`CSA1`) et la
+catégorie « des autres personnes sans activité professionnelle » (CS1
+agrégée n°8) pour laquelle on a procédé à une agrégation des modalités
+de la nomenclature de niveau 3 (`CS3`) en distinguant d'une part les
+« élèves et étudiants » des « chômeurs n'ayant jamais travaillé » et des
+« personnes diverses sans activité professionnelle » de moins de 60 ans
+et de plus de 60 ans, d'autre part.
+
+Ce travail s'appuie sur les données individuelles de l'exploitation
+complémentaire du recensement de 2018, accessibles via le `Centre d'accès sécurisé aux données (CASD)`. Conformément à la réglementation, les
+règles de secret statistique primaire et secondaire ont été respectées,
+conduisant au masquage des cellules comprenant un effectif pondéré
+inférieur à 10 unités et, lorsque nécessaire, au masquage d'une seconde
+case empêchant de retrouver les valeurs masquées par simple différence.
+Sur les 789 AU, moins de 4 % sont concernées par le masquage des cases.
+Par commodité, les valeurs masquées ont été remplacées par 0 afin
+d'inclure les villes concernées dans la typologie.
+
+La population d'étude inclut, en plus de la population dite « en âge de
+travailler » (15-64 ans), la catégorie des 64 ans et plus ayant exercé
+une activité professionnelle au cours de leur vie, comprenant les
+personnes retraitées.
+
+Le travail est mené à l'échelle des aires urbaines (zonage de 2010
+proposé par l'Insee) : celles-ci reposent sur une approche fonctionnelle
+des espaces urbains, en rendant compte à la fois des concentrations
+d'emplois et des déplacements domicile-travail des travailleurs.
+
+Les 57 millions d'habitants des 789 AU étudiées représentent près de
+85 % de la population française en 2018. Parmi celle-ci, **la population des 15 ans et plus correspond à 82 % du total des personnes résidant dans des aires urbaines en 2018, et à 69 % de la population nationale**.
+
+Afin de saisir la façon dont les 26 PCS détaillées se répartissent au
+sein des 789 AU, une analyse multivariée est réalisée : le résultat
+final permet de regrouper les AU qui ont des structures sociales
+proches. Cette analyse géométrique des données est réalisée en deux
+temps : (i) l'analyse en composantes principales (ACP) permet de saisir
+les principales oppositions et associations des différentes variables
+(parmi les 26 catégories), (ii) la classification ascendante
+hiérarchique (CAH) permet de regrouper les 789 AU en six grandes
+classes.
+
+```{r, warning=FALSE, message=FALSE}
+# package
+library(tidyverse)
+library(sf)
+library(FactoMineR)
+library(explor)
+library(factoextra)
+library(GGally)
+library(ggsci)
+library(skimr)
+library(kableExtra)
+library(ggpubr)
+library(ggpmisc)
+library(ggrepel)
+library(DT)
+library(reactable)
+library(reactablefmtr)
+
+
+options(scipen = 999) # pas d'écriture scientifique pour les nombres
+
+# AU
+## Table des AU
+
+allAU_stock <- read.csv2("../Annexes-AU_2018_CSP/data/table_csp/AllAU_VarCS2_custom_stock.csv")
+
+# information AU (départements commune centre)
+
+au_info <- read.csv2("../Annexes-AU_2018_CSP/data/Au_Info.csv")
+
+## Geometries AU
+
+AUsf <- st_read("../Annexes-AU_2018_CSP/data/AUsf.geojson", quiet = TRUE)
+
+# Table des departements
+
+allDEP_stock <-  read.csv2("../Annexes-AU_2018_CSP/data/table_csp/Alldep_VarCS2_custom_stock.csv")
+
+## Geometries departements
+
+depsf <- st_read("../Annexes-AU_2018_CSP/data/a-dep2021.json",  quiet = TRUE)
+
+## dico des départements
+
+dicoDEP <- read.csv2("../Annexes-AU_2018_CSP/data/DicoDep.csv")
+
+## dico des variables 
+
+
+dicoVar <- read.csv2("../Annexes-AU_2018_CSP/data/Dico_VarCS2_custom.csv", encoding = "UTF-8")
+
+DT::datatable(dicoVar %>% filter(Variable != "C18_CS7_CSA_Z"), 
+              caption = "Liste des 26 variables",  )
+
+```
+
+Ce tableau permet de voir les 26 variables (modalités) retenues. La
+plupart proviennent de la variable cs2 en 24 postes, sauf pour les
+retraités et les inactifs.
+
+# Ordres de grandeur et scores globaux
+
+```{r}
+
+
+## totaux nationaux 
+CS2_custom <- allDEP_stock %>% 
+  select(-DEP) %>%
+  map_df(.,  ~sum(., na.rm = TRUE)) %>% 
+  pivot_longer(-C18_POP15P, names_to = "Variable", values_to = "Valeur") %>%
+  mutate(Part = Valeur/C18_POP15P * 100) %>% 
+  select(-1) %>%
+  mutate(Perim = "France")
+
+# totaux AU
+CS2_custom_allAU <- allAU_stock %>% 
+  select(-c(1:8)) %>%
+  map_df(.,  ~sum(., na.rm = TRUE)) %>% 
+  pivot_longer(-C18_POP15P, names_to = "Variable", values_to = "Valeur") %>%
+  mutate(Part = Valeur/C18_POP15P * 100) %>% 
+  select(-1) %>%
+  mutate(Perim = "AU")
+
+CS2_custom <- bind_rows(CS2_custom,CS2_custom_allAU)
+
+rm(CS2_custom_allAU)
+
+
+# Calcul des Variables relatives
+
+
+## Table départements
+
+
+alldep <- allDEP_stock %>%
+  reframe(DEP, across(where(is.numeric), ~  .x/C18_POP15P*100,
+                .names = "{col}_pct")) %>%
+  select(-c(C18_POP15P_pct, C18_CS7_CSA_Z_pct))
+
+# Table AU
+
+
+allAU <- allAU_stock %>%
+  select(-c(pop18_au, TAU2017, NB_COM, Tot_CSP7)) %>%
+  reframe(AU2010,LIBAU2010, perimetre1, perimetre2, perimetre12, 
+          across(where(is.numeric), ~  .x/C18_POP15P*100,
+                      .names = "{col}_pct")) %>%
+  select(-C18_POP15P_pct)
+
+
+```
+
+En 2018, la population résidant en AU représente environ
+**`r round((sum(allAU_stock$pop18_au) / 67186600 * 100),0)` %** de la
+population nationale.
+
+La population de référence (15 ans et plus) représente environ de
+**`r round((sum(allAU_stock$C18_POP15P) / sum(allAU_stock$pop18_au) *100),0)`
+%** de la population urbaine (résidant en AU).
+
+Au final, la population de référence (les 15 ans et plus résidant en AU
+en 2018) représente près de
+**`r round((sum(allAU_stock$C18_POP15P) / 67186600 * 100),0)` %** de la
+population nationale.
+
+```{r}
+
+
+# Pop AU
+
+## ordres de grandeurs
+# part pop AU sur pop nation
+# sum(allAU_stock$pop18_au) / 67186600 * 100  # 85 % de la pop nationale
+# 
+# # part des 15 ans et plus sur pop total AU
+# 
+# sum(allAU_stock$C18_POP15P) / sum(allAU_stock$pop18_au) *100  # 82 % de la population urbaine
+# 
+# 
+# # population de référence sur population nationale
+# 
+# (sum(allAU_stock$C18_POP15P) / 67186600 * 100)  # 69 %  de la population nationale
+
+
+
+## préparation du tableau résumé 
+
+# Recodage variable et label pour les totaux
+
+CS18_TotNat <- CS2_custom %>%
+  left_join(dicoVar) %>%
+  #on rajoute pct à la fin car dans la suite tout est en relatif et cela facilitera la jointure pour comparaison
+  mutate(Variable = paste0(Variable, "_pct")) %>%
+  mutate(Population = case_when( str_detect(Variable, "CSA") ~ "Retraités",
+                                        T ~ "15ans et +")) %>%
+  rename("Total" =  Valeur) %>%
+  pivot_wider(id_cols = c(Variable, Label, Population), names_from = Perim, values_from = c(Total,Part))%>%
+  mutate(Part_AU_Nat = Total_AU/Total_France*100) %>%
+  rename("ProfilTotal_France" = Part_France, "ProfilTotal_AU" = Part_AU) 
+  
+
+# petit calcul part des retraités non déclarés sur la pop 15 ans et plus
+# CS18_TotNat %>% 
+#   filter(Variable == "C18_CS7_CSA_Z_pct") %>% 
+#   pull(Total_France) / sum(CS18_TotNat$Total_France, na.rm = TRUE)*100 ## 0.05 % du total
+
+
+# on supprime les retraités non déclarés et le total des retraités
+CS18_TotNat <- CS18_TotNat %>%
+  filter(!Variable == "C18_CS7_CSA_Z_pct") %>%
+  filter(!Variable == "Tot_CSP7_pct")
+
+
+```
+
+```{r}
+## Tableau sur la CSP 8 et les relations avec la partition en 26 postes 
+
+CS18_Tot_CS1_CS2 <- CS18_TotNat %>%
+  filter(!is.na(Label)) %>%
+  select(Variable, Label, Population, Total_AU) %>%
+  mutate(CS1 = str_sub(Label, start = 1, end = 1) ) %>%
+  mutate(CS1_Retrait = case_when(CS1 == "7" ~ str_sub(Label, start = 2, end = 2), TRUE ~ CS1)) %>%
+  group_by(CS1_Retrait) %>%
+  mutate(TotCS1 = sum(Total_AU),
+         PartCS2_CS1 = Total_AU/TotCS1*100) %>%
+  ungroup
+
+
+Tot15pCS1 <- CS18_Tot_CS1_CS2 %>%
+  select(CS1_Retrait, TotCS1) %>%
+  distinct() %>%
+  mutate(PartCS1wRetrait = TotCS1 / sum(TotCS1)*100)
+
+
+CS18_Tot_CS1_CS2 <- CS18_Tot_CS1_CS2 %>% arrange(CS1_Retrait, - PartCS2_CS1 )
+
+
+
+CS18_Tot_CS1_CS2 <- CS18_Tot_CS1_CS2 %>%
+  ungroup() %>%
+  mutate(CS2_pctPop15p = Total_AU/ sum(Total_AU) *100) %>%
+  left_join(select(Tot15pCS1, CS1_Retrait, PartCS1wRetrait )) 
+
+
+
+```
+
+```{r, fig.width= 14, fig.height=8}
+### Score Nationaux
+CS18_TotNat %>% 
+  select(Label, ProfilTotal_France, ProfilTotal_AU) %>%
+  pivot_longer(-Label, names_to = "Ensemble", values_to = "ProfilTotal") %>%
+  mutate(Ensemble = recode(Ensemble, ProfilTotal_France = "France Entière", ProfilTotal_AU = "Ensemble des AU" )) %>%
+ggplot(.,
+       aes(x = Label, y = ProfilTotal, fill = Ensemble)) +
+  geom_bar(stat = "identity",position = position_dodge2(preserve = "single")) + 
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 8),
+                     expand = c(0,0)) +
+  labs(title = "Profil de la population en 2018 selon la CSP en 26 postes",
+       subtitle = "France Entière et ensemble des Aires Urbaines (CS2 + détail retraités + détail inactifs)",
+       x = "PCS", 
+       y = "Répartition (%)", 
+       caption = "PAVIM 2023\nSources : INSEE RP 18") +
+  theme_grey() +
+  theme(legend.title = element_blank()) +
+  coord_flip() +
+  scale_x_discrete(labels = scales::label_wrap(50)) 
+
+
+```
+
+La figure ci-dessus montre qu'on obtient les sensiblement les mêmes
+ordres de grandeur entre la population urbaine et la population
+nationale, avec tout de même :
+
+-   Une sur-représentation pour la population nationale des csp
+    agricoles.
+
+-   Une sur-représentation pour l'ensemble des AU des inactifs sans
+    activité pro et élèves/étudiants.
+
+```{r, fig.width= 14, fig.height=8}
+
+
+### Poids relatif de la population des AU au sein de la population national
+
+CS18_TotNat %>% 
+  ggplot(.,
+         aes(x = reorder(Label, Part_AU_Nat), y = Part_AU_Nat)) +
+  scale_fill_nejm() +
+  geom_bar(stat = "identity") + 
+  labs(title = "Poids relatif de la population des AU au sein de la population nationale",
+       subtitle = "Selon les CSP en 26 postes (CS2 + détail retraités + détail inactifs)",
+       x = "PCS", 
+       y = "Part de la population nationale résidant en AU (%)", 
+       caption =  "PAVIM 2023\nSources : INSEE RP 18\nExploitations principale et complémentaire") +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 8), 
+                     expand = c(0,0)) +
+  theme_grey() +
+  coord_flip() +
+  scale_x_discrete(labels = scales::label_wrap(50)) 
+```
+
+Cette deuxième figure produit un éclairage pour mieux comprendre les
+profils de la population nationale et de la population résidant en AU.
+Il s'agit du poids de la population résidant en AU par rapport à la
+population nationale, selon le découpage en CSP.
+
+Note de lecture : plus de 90% des cadres d'entreprise français résident
+dans une Aire Urbaine.
+
+Seules les 3 csp liées à l'agriculture sont en dessous de 70%.
+
+# Profils moyens et calcul des écarts (distances)
+
+Avant de passer aux différentes explorations pour la construction de la
+typologie, voici quelques ordres de grandeurs accompagnés d'un double
+calcul de distances qui peut servir d'aide à l'interprétation. L'idée
+est de calculer, pour chaque AU, une distance à la moyenne de toutes les
+AU et une distance aux valeurs du département de la commune centre.
+Ainsi pour chaque ville, on obtient un écart au profil moyen des AU
+(spécificité de la ville) et à son contexte territorial (département).
+
+## Profil moyen des AU
+
+Gestion des valeurs manquantes : on remplace tous les NA par 0, car les
+NA proviennent principalement du secret statistique primaire (seuil
+inférieur à 10 unités).
+
+Les NA représentent **`r sum(is.na(allAU))`** cellules du tableau soit
+**`r round((sum(is.na(allAU))/prod(dim(allAU))*100),1)` %** des
+cellules.
+
+Ce sont seulement **`r round((length(allAU %>% filter(if_any(is.numeric, any_vars(is.na(.))))) / nrow(allAU) *100),2)`%** des AU qui ont au moins une valeur manquante.
+
+```{r, fig.width= 14, fig.height=8}
+
+
+# Gestion des valeurs manquantes.
+
+# pct de NA
+# 
+# sum(is.na(allAU))/prod(dim(allAU)) # 1,5% de NA
+# 
+# 
+# skim(allAU) # colonnes avec les plus de NA = CS23, Chefs d'entreprise de 10 salariés ou plus, 157 AU sans cette valeur
+# 
+# 
+# # pct d'AU avec au moins une variable manquante
+# 
+# length(allAU %>% filter(if_any(is.numeric, any_vars(is.na(.))))) / nrow(allAU) *100  # 4 % des AU avec au moins une valeur manquante.
+
+# comme le masquage est lié principalement au secret primaire (valeur inférieures à 10), on passe toutes les valeurs à 0
+
+# test à 0
+
+allAU <- allAU %>%
+  mutate(
+    across(everything(), ~replace_na(.x, 0))
+  )
+
+
+# Profils moyens et calcul des écarts (distances)
+
+## Profil moyen des AU
+
+
+# vecteur des valeurs moyenne (ensemble AU)
+
+meanAU <- allAU %>%
+   select_if(is.numeric) %>%
+   map_df(.,  ~mean(., na.rm = TRUE)) %>%
+   pivot_longer(cols = everything(), names_to = "Variable", 
+                values_to = "Moyenne_AU" ) %>%
+   # joindre les valeurs nationales et les labels 
+   left_join(CS18_TotNat, by = "Variable") 
+  
+
+ggplot(meanAU) +
+  geom_bar(aes(x = reorder(Label,Moyenne_AU), y = Moyenne_AU), stat = "identity") +
+  geom_errorbar(aes(x = Label, 
+                    ymin = ProfilTotal_France, ymax = ProfilTotal_France,
+                     color = "moy"),
+                linewidth = 0.75) +
+  geom_errorbar(aes(x = Label, 
+                    ymin = ProfilTotal_AU, ymax = ProfilTotal_AU,
+                    color = "moy2"),
+                linewidth = 0.75) +
+  scale_color_manual(values = c(moy = "black", moy2 = "red"), 
+                     labels = c(moy = "Population Nationale", moy2 ="Profil urbaine (Total AU)" ))+
+  labs(title = "Profil moyen de l'ensemble des AU",
+       subtitle = "Moyenne de la répartition en CSP",
+       x = "PCS", 
+       y = "Moyenne de l'ensemble des AU (%)", 
+       caption = "PAVIM 2023\nSources : INSEE RP 18\nExploitations principale et complémentaire") +
+  theme_grey() +
+  theme(legend.title = element_blank()) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 8)) +
+  coord_flip() +
+  scale_x_discrete(labels = scales::label_wrap(50)) 
+  
+  
+```
+
+La figure ci-dessus représente de nouveaux ordres de grandeur, il ne
+s'agit plus des profils de répartition sur des ensembles de population,
+mais bien d'un profil moyen construit à partir des profiles respectifs
+de chaque AU. Pour ce faire, on a simplement calculé la moyenne en
+colonne pour chaque variable en pourcentage.
+
+On repère des écarts notables pour les catégories de cadres (CSP 36 et
+32) et pour les étudiants (CSP 84) qui affichent des moyennes beaucoup
+plus basses que dans les profils globaux de la population nationale et
+de la population urbaine. Ces écarts sont dûs à la concentration
+métropolitaine de ces catégories (et à leur sous-représentation dans les
+petites villes).
+
+## Profils moyens des grandes villes et des villes petites et moyennes (VPM)
+
+On fait un résumé statistiques de chaque variable pour l'ensemble des AU
+mais également selon la distinction entre grandes villes et VPM, à
+partir d'un seuil de 250 000 habitants.
+
+```{r}
+
+# tableau avec selon les classes de tailles
+
+
+Tout <-  allAU %>%
+  skim() %>%
+  mutate(ensemble = "Ensemble AU",
+         N = as.numeric(.[skim_variable == "AU2010", "character.n_unique"])) %>%
+  filter(skim_type == "numeric") %>%
+  select(-starts_with("character")) %>%
+  as_tibble() %>%
+  select( -c(skim_type,n_missing, complete_rate, numeric.hist, numeric.p100, numeric.p0))%>%
+  relocate(ensemble, N)
+
+GV <- allAU %>% 
+  filter(perimetre2 == "hors_perimetre2") %>% 
+  skim() %>%
+  mutate(ensemble = "Grandes Villes",
+         N = as.numeric(.[skim_variable == "AU2010", "character.n_unique"])) %>%
+  filter(skim_type == "numeric") %>%
+  select(-starts_with("character")) %>%
+  as_tibble() %>%
+  select( -c(skim_type,n_missing, complete_rate, numeric.hist, numeric.p100, numeric.p0))%>%
+  relocate(ensemble, N)
+  
+Perim2 <- allAU %>% 
+  filter(perimetre2 == "perimetre2") %>% 
+  skim() %>%
+  mutate(ensemble = "VPM",
+         N = as.numeric(.[skim_variable == "AU2010", "character.n_unique"])) %>%
+  filter(skim_type == "numeric") %>%
+  select(-starts_with("character")) %>%
+  as_tibble() %>%
+  select( -c(skim_type,n_missing, complete_rate, numeric.hist, numeric.p100, numeric.p0))%>%
+  relocate(ensemble, N)
+
+# tableaux
+df <- bind_rows(Tout, GV) %>% 
+  bind_rows(., Perim2) %>%
+  mutate(CV =  numeric.sd/numeric.mean) %>% 
+  left_join(select(CS18_TotNat, Variable, Label, Population), by = c("skim_variable" = "Variable")) %>%
+  select(-skim_variable) %>%
+  relocate(ensemble, N, "Variable" = Label, Population) %>%
+  arrange(Variable, Population) %>%
+  select(-Population) %>%
+  mutate(across(where(is.numeric), ~round(., digits = 2)))
+
+colnames(df) <-  c("Ensemble", "N", "Variable",  "Moyenne", "EC", "Q1", "Médiane", "Q3", "CV")
+ 
+# style colonnes fixées
+sticky_style <- list(backgroundColor = "#f7f7f7")
+ 
+#tableau interactif
+reactable(df, filterable = TRUE, minRows =10, striped = TRUE,
+            columns = list(
+    Ensemble = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    ),
+    N = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    ),
+    Variable = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    )
+  ),
+  resizable = TRUE,
+  wrap = FALSE,
+  bordered = TRUE) %>%
+  add_subtitle("Résumé statistique de chaque variable pour différents ensemble d'AU")
+
+## Tableau présent dans l'article
+
+df <- df %>% filter(Ensemble == "Ensemble AU")
+
+TabArticle <- CS18_Tot_CS1_CS2 %>% 
+  left_join(select(df, Variable, Moyenne, EC, Médiane, CV), by = c("Label" = "Variable"))
+  
+TabArticle <- TabArticle %>%
+  select(Variable, "CS1" = CS1_Retrait, TotCS1,  "CS1_pctPop15p" = PartCS1wRetrait, "CS2" = Label, PartCS2_CS1, Total_AU,  CS2_pctPop15p,  "Moyenne_AU" = Moyenne, "Mediane_AU" = Médiane ,CV )
+
+
+TabArticle <- TabArticle %>%
+  mutate(CS1 = recode(CS1,  
+                      "1" = "1. Agriculteurs exploitants",
+                      "2" =  "2. Artisans, commerçants et\nchefs d'entreprise",
+                      "3" = "3. Cadres et\nprofessions intellectuelles supérieures",
+                      "4" = "4. Professions Intermédiaires",
+                      "5"= "5. Employés",
+                      "6" = "6. Ouvriers",
+                      "8" = "8. Autres personnes sans activité professionnelle")) %>%
+  mutate(across(where(is.numeric), ~round(., digits = 2)))
+  
+
+ rm(Tout, GV, Perim2)
+ 
+
+
+```
+
+Ce tableau permet l'exploration des profils moyens (moyennes des valeurs
+individuelles de chaque AU) selon trois ensembles :
+
+-   L'ensemble des AU (score représentés dans le graphique précédent)
+
+-   Les grandes villes (les 42 AU \> 250 000 habitants)
+
+-   Les VPM (les 747 AU du périmètre 2 \< 250 000 habitants, avec un
+    minimun à 2 000 habitants)
+
+On retrouve bien les écarts importants pour les cadres d'entreprises :
+4,7 % en moyenne pour les grandes villes et seulement 2,11 % en moyenne
+pour les villes petites et moyennes.
+
+## Calcul des distances à la moyenne et au département d'appartenance
+
+### Distances à la moyenne des AU
+
+```{r}
+
+### Distances à la moyenne des AU
+
+meanProfileAU <- meanAU %>% 
+  select(Variable, Moyenne_AU) %>% 
+  mutate(AU2010 = "999", 
+         LIBAU2010 = "Moyennes des AU") %>%
+  pivot_wider(id_cols=  c(AU2010, LIBAU2010), names_from = Variable, values_from = Moyenne_AU) 
+
+## Calcul d'une distance euclidienne au profil moyen
+
+distAllAU <- allAU  %>% 
+  mutate(across(where(is.numeric), function(x) x - mean(x, na.rm = TRUE))) %>% 
+  # on normalise les résultats en colonnes pour la comparabilité.
+  mutate(across(where(is.numeric), scale)) %>%
+  rowwise %>% 
+  # l'indicateur créé est donc la somme en valeur absolue des écarts à la moyenne (normalisés)
+  mutate(DistMeanAU = sum(abs(c_across(where(is.numeric)))))
+
+## ajout au tableau
+
+allAU <- allAU %>%
+  left_join(select(distAllAU, AU2010, DistMeanAU))
+
+
+
+```
+
+```{r}
+### 5 villes les plus proches de la moyenne
+
+df <- allAU %>% slice_min(., order_by = DistMeanAU, n = 5) %>%
+  arrange(DistMeanAU) %>%
+  left_join(select(au_info, AU2010,pop18_au)) %>%
+  relocate(AU2010, LIBAU2010, DistMeanAU, pop18_au) %>%
+  bind_rows(., meanProfileAU) %>%
+  mutate(across(where(is.numeric), ~round(., 2))) 
+
+
+sticky_style <- list(backgroundColor = "#f7f7f7")
+
+reactable(df, filterable = FALSE, minRows =5, striped = TRUE,
+            columns = list(
+    AU2010 = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    ),
+    LIBAU2010 = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    ),
+    DistMeanAU = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    )
+  ),
+  resizable = TRUE,
+  wrap = FALSE,
+  bordered = TRUE) %>%
+  add_subtitle("Les 5 villes les plus proches du profil moyen")
+
+
+```
+
+Les 5 AU les proches du profil moyen sont toutes des villes moyennes
+avec des populations totales comprises entre 24 000 et 80 000 habitants.
+
+La ville la plus proche du profil moyen est Marmande.
+
+```{r}
+### 5 villes les plus éloignées du profil moyen
+
+df <- allAU %>% slice_max(., order_by = DistMeanAU, n = 5) %>%
+  arrange(-DistMeanAU) %>%
+  left_join(select(au_info, AU2010,pop18_au)) %>%
+  relocate(AU2010, LIBAU2010, DistMeanAU, pop18_au) %>%
+  bind_rows(., meanProfileAU) %>%
+  mutate(across(where(is.numeric), ~round(., 2))) 
+
+
+reactable(df, filterable = FALSE, minRows =5, striped = TRUE,
+            columns = list(
+    AU2010 = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    ),
+    LIBAU2010 = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    ),
+    DistMeanAU = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    )
+  ),
+  resizable = TRUE,
+  wrap = FALSE,
+  bordered = TRUE) %>%
+  add_subtitle("Les 5 villes les éloignées du profil moyen")
+```
+
+Les AU les plus spécifiques, c'est-à-dire avec les écarts les plus
+importants au profil moyen sont de toutes petites villes ( 4 000
+habitants) ou des aires urbaines des DROM, dans les cas de Saint
+Laurent-du-Maroni et de Maripasoula.
+
+### Distance de chaque AU au profil de son département d'appartenance
+
+NOTE : Le département de chaque AU correspond au département de la
+commune centre de l'AU.
+
+```{r}
+### Distance de chaque AU aux scores de son département d'appartenance
+
+
+# ajout département (de la commune centre) à la table des AU
+allAU_csp <- allAU %>% 
+  left_join(select(au_info, AU2010, DEP))
+
+## ici étape un peu particulière mais on met des vecteurs de valeurs en colonne pour faciliter le calcul des distances aux valeurs départementales
+# vecteur de valeurs pour chaque ville 
+allAU_csp <- allAU_csp %>%
+  rowwise %>%
+  mutate(VecCity = list(c_across(starts_with("C"))))
+
+
+# vecteur de valeurs (mêmes variables) pour les départements de référence
+alldep <- alldep %>% 
+  rowwise %>%
+  mutate(VecDep = list(c_across(where(is.numeric))))
+
+
+# jointure sur le fichier des AU
+allAU_csp <- allAU_csp %>%
+  left_join(select(alldep, DEP, VecDep))
+
+# calcul d'un vecteur d'écart aux valeurs départementales.
+allAU_csp <- allAU_csp %>%
+  mutate(VecDistAUDEP = list(VecCity-VecDep))
+
+
+# Split le vecteur des écarts au département pour faire un scaling par départements
+
+
+distAUDEP <- allAU_csp %>% 
+  select(AU2010, DEP, VecDistAUDEP)  %>% 
+  mutate(VecDistAUDEP = as_tibble(split(VecDistAUDEP, 
+                                        paste0("V", seq(1:unique(lengths(allAU_csp$VecDistAUDEP))))))) %>%
+  unnest(VecDistAUDEP) %>%
+  group_by(DEP) %>%
+  mutate(Nau =n(),
+         across(starts_with("V"), ~ if_else(Nau>1, scale(.), .))) %>%
+  rowwise %>% 
+  mutate(DistDepAU = sum(abs(c_across(starts_with("V"))))) %>%
+  ungroup
+
+
+
+## Tableau final 
+
+allAU_csp <- allAU_csp %>%
+  left_join(select(distAUDEP, AU2010, DistDepAU)) %>%
+  select(-starts_with("Vec")) %>%
+  ungroup
+
+
+
+### 10 villes les plus éloignées de leur département
+
+df <- allAU_csp %>% 
+  slice_max(., order_by = DistDepAU, n = 10) %>%
+  arrange(-DistDepAU) %>%
+  mutate(across(where(is.numeric), ~round(., 2))) %>%
+  left_join(select(au_info, AU2010, pop18_au)) %>%
+  relocate(AU2010, LIBAU2010, DEP, DistDepAU,pop18_au ) %>%
+  rename("LIBGEO" = LIBAU2010) 
+
+df2 <- alldep %>% 
+  left_join(select(dicoDEP, DEP, LIBDEP)) %>%
+  select(-VecDep) %>%
+  rename("LIBGEO" = LIBDEP) %>%
+  mutate(across(where(is.numeric), ~round(., 2))) %>%
+  filter(DEP %in% df$DEP) %>%
+  mutate(AU2010 = "Departement")
+
+df <- bind_rows(df, df2) %>%
+  arrange(DEP) %>%
+  rename("Entite" = AU2010)
+
+
+reactable(df, filterable = FALSE, minRows =10, striped = TRUE,
+            columns = list(
+    Entite = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    ),
+    LIBGEO = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    ),
+    DEP = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    )
+  ),
+  resizable = TRUE,
+  wrap = FALSE,
+  bordered = TRUE) %>%
+  add_subtitle("10 AU les éloignées du profil de leur département")
+
+
+rm(df2)
+```
+
+Le tableau permet d'afficher un résumé des AU les plus spécifiques par
+rapport à leur contexte départemental. 
+
+On a mis en dessous le profil du département pour comparaison. 
+
+Les villes les plus éloignées de leur département sont soit des métropoles soit de toutes petites villes très spécialisées. 
+
+Une fois le tableau préparé, on obtient une table des AU avec :
+
+-   Le code identifiant AU2010 ainsi que le libellé
+
+-   La répartition de la population de 15 ans et plus dans la CSP en 26
+    postes (en pct)
+
+-   Des indicateurs de distance à la moyenne totale des aires urbaines
+    (sommes des écarts à la moyenne, normalisés en colonnes) et les
+    écarts au profil du département d'appartenance.
+
+# Relations entre les variables
+
+## Corrélation entre les variables
+
+```{r, fig.width= 14, fig.height=8}
+##### Relations entre variables #####
+
+
+ggcorr(allAU %>% select(where(is.numeric)) %>% select(-DistMeanAU), 
+       palette = "RdBu", label = F,
+       layout.exp = 5,
+       hjust =1,
+       size = 3)
+
+
+```
+
+On trouve ici :
+
+-   Un bloc de corrélations positives entre les CSP d'un même grand
+    groupe.
+
+-   Un bloc de corrélations positives entre les CSP retraités
+    privilégiés (2, 3, 4) et les actifs des CPIS et des artisans,
+    commerçants et chefs d'entreprise (CSP 2 et 3).
+
+# Typologie
+
+## ACP
+
+Réalisation d'une analyse en composantes principales (ACP) à partir des
+profils de CSP en 26 postes sur la population de 15 ans et plus.
+
+```{r}
+
+
+
+
+
+## tableau intermédiaire pour l'ACP
+AU_typo <- as.data.frame(allAU_csp %>% select(-c(DistMeanAU, DistDepAU)))%>% 
+  select(AU2010, LIBAU2010, DEP, is.numeric)
+
+
+# garder les identifiants
+
+rownames(AU_typo) <- paste(AU_typo$LIBAU2010,AU_typo$DEP, sep = "_" )
+
+# faire l'ACP
+res.pca <- PCA(AU_typo[,c(4:length(AU_typo))], # sans les id
+               scale.unit = TRUE, 
+               # quali.sup = 1,
+               graph = FALSE, 
+               ncp = 5) ### IMPORTANT LE NB DE COMPOSANTES UTILISEES par la suite
+
+# pour une exploration interactive
+
+#explor(res.pca)
+
+## Hiérarchisation des axes
+
+eigenvalues <- as_tibble(res.pca$eig) %>%
+  mutate(Axe = row_number()) %>%
+  pivot_longer(-Axe, values_to = "Valeur", names_to = "Variable")
+
+ggplot(eigenvalues %>% 
+         filter(! Variable == "eigenvalue") %>%
+         filter(Axe < 9)) +
+  geom_bar(aes(x = as.character(Axe) , y = Valeur), 
+           stat = "identity") +
+  facet_wrap(~Variable, 
+             scales = "free_y",
+             labeller = labeller(Variable = c(`cumulative percentage of variance` = "Variance cumulée",
+                                              `percentage of variance` = "Variance"))) +
+  labs(x = "Axes", y = "Variance (%)")
+
+
+
+
+
+
+```
+
+On a choisi de retenir les 5 premiers axes de l'ACP. Ce qui correspond à
+plus de **60 %** de la variance totale.
+
+## Description des axes
+
+On trouvera ci-dessous une représentation graphique des oppositions des
+4 premiers axes de l'ACP suivie d'une description des 5 axes retenus
+avec la contribution de chaque variable et un résumé des oppositions
+structurantes.
+
+### Espace Axe 1 VS Axe 2
+
+```{r, out.width="100%", fig.height=10}
+## Variables sur les axes 1 et 2
+res <- explor::prepare_results(res.pca)
+
+explor::PCA_var_plot(res, xax = 1, yax = 2, var_sup = FALSE, var_sup_choice = ,
+    var_lab_min_contrib = 0, col_var = NULL, labels_size = 10, scale_unit = TRUE,
+    transitions = TRUE, labels_positions = NULL)
+
+```
+
+### Espace Axe 3 VS Axe 4
+
+```{r, out.width="100%", fig.height=10}
+explor::PCA_var_plot(res, xax = 3, yax = 4, var_sup = FALSE, var_sup_choice = ,
+    var_lab_min_contrib = 0, col_var = NULL, labels_size = 10, scale_unit = TRUE,
+    transitions = TRUE, labels_positions = NULL)
+```
+
+### AXE 1
+
+```{r}
+
+# AXe 1
+df <- res$vars %>% 
+  select(-all_of(c("Level", "Type", "Class"))) %>%
+  filter(Axis == 1) %>%
+  arrange(-Contrib) %>%
+  left_join(select(CS18_TotNat, Variable, Label), by = "Variable") %>%
+  relocate(Variable,  Label)
+
+
+
+DT::datatable(df, class = 'cell-border stripe', rownames = F, filter = 'top', editable = F, 
+              caption = "AXE 1") 
+```
+
+-   AXE 1 : (+) Cadres et prof interm. et prof lib *VS* ouvriers (actifs
+    et retraités) (-)
+
+### AXE 2
+
+```{r}
+
+# Axe 2
+df <- res$vars %>% 
+  select(-all_of(c("Level", "Type", "Class"))) %>%
+  filter(Axis == 2) %>%
+  arrange(-Contrib) %>%
+  left_join(select(CS18_TotNat, Variable, Label), by = "Variable") %>%
+  relocate(Variable,  Label)
+
+
+
+DT::datatable(df, class = 'cell-border stripe', rownames = F, filter = 'top', editable = F, 
+              caption = "AXE 2") 
+```
+
+-   AXE 2 : (+) Actifs (Cadres, tech, ouvr qualif) et étudiants *VS*
+    Retraités (de la plupart des CSP) (-)
+
+### AXE 3
+
+```{r}
+
+# Axe 3
+
+df <- res$vars %>% 
+  select(-all_of(c("Level", "Type", "Class"))) %>%
+  filter(Axis == 3) %>%
+  arrange(-Contrib) %>%
+  left_join(select(CS18_TotNat, Variable, Label), by = "Variable") %>%
+  relocate(Variable,  Label)
+
+
+
+
+DT::datatable(df, class = 'cell-border stripe', rownames = F, filter = 'top', editable = F, 
+              caption = "AXE 3") 
+```
+
+-   AXE 3 : (+) Techniciens, ouvr qualif, PI, retraités CSP1 et 2 *VS*
+    Employés fct publiques, inactifs, étudiants (-)
+
+### AXE 4
+
+```{r}
+
+# Axe 4
+
+df <- res$vars %>% 
+  select(-all_of(c("Level", "Type", "Class"))) %>%
+  filter(Axis == 4) %>%
+  arrange(-Contrib) %>%
+  left_join(select(CS18_TotNat, Variable, Label), by = "Variable") %>%
+  relocate(Variable,  Label)
+
+
+
+
+
+DT::datatable(df, class = 'cell-border stripe', rownames = F, filter = 'top', editable = F, 
+              caption = "AXE 4") 
+```
+
+-   AXE 4 : (+) Agriculteurs *VS* Economie résid et fonction publique
+    (-)
+
+### AXE 5
+
+```{r}
+
+# Axe 5
+
+df <- res$vars %>% 
+  select(-all_of(c("Level", "Type", "Class"))) %>%
+  filter(Axis == 5) %>%
+  arrange(-Contrib) %>%
+  left_join(select(CS18_TotNat, Variable, Label), by = "Variable") %>%
+  relocate(Variable,  Label)
+
+
+
+
+
+DT::datatable(df, class = 'cell-border stripe', rownames = F, filter = 'top', editable = F, 
+              caption = "AXE 5") 
+```
+
+-   AXE 5 : (+) Services au particuliers, artisans, agriculteurs et
+    commerces *VS* retraités employés et PI (-)
+    
+    
+### Commentaire de l'ACP
+
+L’ACP donne des premières clefs de lecture, et montre tout d’abord que les villes se répartissent selon des oppositions classiques, d’abord en termes de groupes sociaux (aires urbaines ouvrières vs aires urbaines de cadres et de professions libérales), puis en termes de cycle de vie (aires urbaines avec une forte part de retraités vs les autres aires urbaines).
+
+
+Ensuite, l’axe 3 sépare les AU avec une part d’inactifs, d’étudiants et d’emploi public particulièrement marquée des autres AU, l’axe 4 isole les AU dont la dominante économique relève soit de l’agriculture de celle relevant de l’économie résidentielle et l’axe 5 permet de mieux appréhender les AU selon la part des retraités employés et des professions intermédiaires.
+
+## CAH
+
+Après avoir qualifié les grandes oppositions et différenciations entre
+villes telles qu'elles sont définies par l'ACP, nous réalisons une
+typologie en faisant une classification ascendante hiérarchique (critère
+de ward) sur les coordonnées des aires urbaines sur les 5 premiers axes
+de l'ACP.
+
+### Nombre de classes
+
+```{r}
+
+res.hcpc <- HCPC(res.pca, 
+                 graph = FALSE, 
+                 method = "ward" ,
+                 min = 5, 
+                 max = 8, 
+                 nb.par = 5, 
+                 description = TRUE, 
+                 proba = 1) # IMPORTANT pour garder les Axes et variables non significatifs)
+
+
+colCAH <- setNames(c("hotpink1", "#DC2C48", "#957C60", "#FFCC33", "#4C6FAD", "#33CCFF"), 
+                   c(1,2,3,4,5,6)) 
+
+fviz_dend(res.hcpc, 
+          show_labels = FALSE,
+          palette = colCAH,               # Color palette ggpubr
+          rect = TRUE, 
+          rect_fill = TRUE, # Add rectangle around groups
+          main = "Dendrogramme")           # Rectangle color )
+
+
+fviz_cluster(res.hcpc,
+             geom = "point",           
+             show.clust.cent = TRUE, # Show cluster centers
+             palette = colCAH,         # Color palette ggpubr
+             ggtheme = theme_grey(),
+             main = "Cluster sur les axes 1 et 2",
+             axes = c(1,2)
+             )
+
+fviz_cluster(res.hcpc,
+             geom = "point",           
+             show.clust.cent = TRUE, # Show cluster centers
+             palette = colCAH,         # Color palette ggpubr
+             ggtheme = theme_grey(),
+             main = "Cluster sur les axes 3 et 4",
+             axes = c(3,4)
+             )
+
+
+
+```
+
+On construit une CAH avec en 6 classes d'Aires Urbaines.
+
+### Description des classes
+
+```{r, fig.width= 14, fig.height=8}
+## Individus par classes
+
+Nclust <- res.hcpc$data.clust %>%
+  group_by(clust)%>%
+  summarise(N = n())%>%
+  rename(Cluster = clust)
+
+# classe selon la position moyenne sur les axes
+ProfileAxe <- res.hcpc$desc.axes$quanti %>%
+  imap_dfr(., ~as_tibble(., rownames = "Variable"),.id = "Cluster") %>%
+  mutate(Axe = parse_number(Variable)*10 )
+  
+
+
+ggplot(ProfileAxe) +
+  geom_bar(aes(x = Variable, y = `Mean in category`, fill = Cluster), stat = "identity") +
+  scale_fill_manual(values = colCAH) +
+  geom_errorbar(aes(x = Variable, 
+                    ymin = `Overall mean`, ymax = `Overall mean`),
+                color = "black",
+               linewidth = 0.5) +
+  facet_wrap(~ Cluster) +
+  geom_text(data = ProfileAxe %>% filter(p.value>0.05),
+            mapping = aes(label = paste("Non sign.\np = ", round(p.value, digits = 3)), 
+                          x = Variable, 
+                          y = `Mean in category`),
+            vjust = 0.5, 
+            hjust= -0.5,
+            position = position_dodge(width = 0.8),
+            size = 2) +
+  geom_label(data = Nclust, 
+            mapping = aes(label = paste0("N = ", N)), 
+            size = 3.5,
+            x = Inf, y = Inf ,
+            hjust = 1.5,
+            vjust = 2) +
+  labs(title = "Description des classes",
+       subtitle = "Position moyenne sur les axes",
+       x = "Axe", 
+       y = "Moyenne", 
+       caption = "PAVIM 2023\nSources : INSEE RP 18\nExploitations principale et complémentaire") +
+  theme_grey() +
+  coord_flip()
+
+
+```
+
+Ce premier graphique représente les positions moyennes des villes de
+chaque classe selon les 5 grands axes de l'ACP.
+
+```{r, fig.width= 18, fig.height=12}
+# classe selon les valeurs moyennes par variables
+
+ProfileVar <- res.hcpc$desc.var$quanti %>%
+  imap_dfr(., ~as_tibble(., rownames = "Variable"),.id = "Cluster") 
+
+ggplot(ProfileVar) +
+  geom_bar(aes(x = Variable, y = `Mean in category`, fill = Cluster), stat = "identity") +
+  scale_fill_manual(values = colCAH) +
+  geom_errorbar(aes(x = Variable, 
+                    ymin = `Overall mean`, 
+                    ymax = `Overall mean`,
+                    color = "moy"),
+                linewidth = 0.25) +
+  scale_color_manual(values = c(moy = "black"), 
+                     labels = c(moy = "Moyenne ensemble")) +
+  facet_wrap(~ Cluster) +
+  geom_text(data = ProfileVar %>% filter(p.value>0.05),
+            mapping = aes(label = paste("Non sign.\np = ", round(p.value, digits = 3)), 
+                          x = Variable, 
+                          y = `Mean in category`),
+            vjust = 0.5, 
+            hjust= -0.5,
+            position = position_dodge(width = 0.8),
+            size = 2) +
+  geom_label(data = Nclust, 
+            mapping = aes(label = paste0("N = ", N)), 
+            size = 3.5,
+            x = Inf, y = Inf ,
+            hjust = 1.5,
+            vjust = 1) +
+  labs(title = "Description des classes",
+       subtitle = "Valeurs moyennes sur les variables",
+       x = "Variable", 
+       y = "Moyenne (%)", 
+       fill = "Classe",
+       colour = "",
+       caption = "PAVIM 2023\nSources : INSEE RP 18\nExploitations principale et complémentaire") +
+  theme_grey() +
+  coord_flip()
+
+
+
+```
+
+Ce second graphique permet de voir les scores moyens de chaque classe
+d'aires urbaines sur les 26 variables représentant les profils sociaux
+de leur population résidante de 15 ans et plus.
+
+```{r}
+# individus représentatifs
+res.hcpc$desc.ind  # para = parangons (proches du centre de classe) / dist = individus les plus éloignés des autres clusters (donc individus spécifiques)
+```
+
+Enfin pour aider l'interprétation de ces classes , on repère 10
+individus spécifiques pour chacune d'entre elles :
+
+-   les 5 AU `$para` sont celles qui sont le plus proches du centre de
+    la classe
+-   les 5 AU `$dist` sont celles qui sont le plus spécifiques à chaque
+    classe, c'est-à-dire les plus éloignées des autres classes.
+
+Rappel des oppositions dégagées dans les 5 axes de l'ACP :
+
+-   AXE 1 : (+) Cadres et prof interm. et prof lib *VS* ouvriers (actifs
+    et retraités) (-)
+
+-   AXE 2 : (+) Actifs (Cadres, tech, ouvr qualif) et étudiants *VS*
+    Retraités (de la plupart des CSP) (-)
+
+-   AXE 3 : (+) Techniciens, ouvr qualif, PI, retraités CSP1 et 2 *VS*
+    Employés fct publiques, inactifs, étudiants (-)
+
+-   AXE 4 : (+) Agriculteurs *VS* Economie résid et fonction publique
+    (-)
+
+-   AXE 5 : (+) Services au particuliers, artisans, agriculteurs et
+    commerces *VS* retraités employés et PI (-)
+
+Dans la description des classes : la première parenthèse concerne le
+nombre d'AU, la deuxième parenthèse répertorie 2 villes (le premier
+parangon/ le premier spécifique)
+
+-   CLASSE 1 (71) : Villes tournées vers les activités agricoles et la
+    petite industrie (Vire Normandie / Vertus)
+-   CLASSE 2 (211) :Villes de tradition ouvrière (Rosporden /
+    Fessenheim)
+-   CLASSE 3 (196) : Villes de retraités, plutôt ouvrières et fonction
+    publique (Ruffec / Grand-Bourg)
+-   CLASSE 4 (26) : Périphériques (Saint-Benoît / Maripasoula)
+-   CLASSE 5 (211) : Villes d'encadrement et de formation (Auxerre /
+    Paris)
+-   CLASSE 6 (74) : Villes de retraités favorisés (Salernes / Morzine)
+
+## Cartographie
+
+### Cartographie statiques
+
+```{r , fig.width= 16, fig.height=10}
+
+
+## Cartographie
+
+### Cartographie statiques
+
+
+## Récupérer la typo
+AU_carto <- AU_typo %>% 
+  bind_cols(., CAH = res.hcpc$data.clust$clust) 
+  
+
+## ajout des géometries AU
+AU_carto <- AU_carto %>%
+  left_join(AUsf) %>% st_sf
+
+
+# labelClass
+
+
+CAHlabel <- data.frame(CAH = sort(unique(AU_carto$CAH)) ,
+                       CAHlabs = c("tournées vers les activités agricoles\net la petite industrie (1)",
+                                   "de tradition ouvrière (2)",
+                                   "de retraités (3)",
+                                   "périphériques (4)",
+                                   "d’encadrement et de formation (5)",
+                                   "de retraités favorisés (6)"))
+
+
+AU_carto <-AU_carto %>%
+left_join(CAHlabel, by ="CAH")
+## cartographie
+
+  
+g <- ggplot() +
+  geom_sf(data =depsf, fill = "#bfbfbf", color = "white", size = 0.5) +
+  geom_sf(data = AU_carto,
+          mapping = aes(fill = CAH ), size = 0.25) +
+ scale_fill_manual(values = colCAH, breaks = c(1:6), label = CAHlabel$CAHlabs) +
+  theme_void() +
+  labs(title = "Cartographie des classes",
+       subtitle = "Ensemble Aires Urbaines 2018",
+       fill = "Aires urbaines...",
+       caption = "PAVIM 2023\nSources : INSEE RP 18\nExploitations principale et complémentaires")
+
+# ggsave(g, "../Output/Cartoclasse.png", height = 20, width = 14, units = "cm")
+
+g
+
+```
+
+### Cartographie interactive
+
+```{r, out.width="100%", fig.height=12}
+require(leaflet)
+require(leafpop)
+
+# jointure distance département et moyenne AU
+
+AU_carto <- AU_carto %>%
+  left_join(select(allAU_csp, 
+                   AU2010, 
+                   perimetre2, 
+                   "Ecart_profil_moyen_AU" = DistMeanAU,
+                   "Ecart_profil_DEP" = DistDepAU), 
+            by = "AU2010")
+  
+  
+# palette de couleurs
+
+pal <- colorFactor(c( "#4C6FAD", "#957C60", "#33CCFF", "#DC2C48", "#FFCC33","hotpink1"), 
+                   AU_typo$CAHlabs)
+
+# carto dynamique (avec pop-up du tableau au clic)
+leaflet() %>%
+  addPolygons(data = AU_carto,
+              popup = popupTable(AU_carto %>% st_drop_geometry(),
+                                 row.numbers = FALSE, 
+                                 feature.id = FALSE),
+              fillColor = ~pal(CAHlabs),
+              fillOpacity = 0.8,
+              color = "black",
+              weight = 1, 
+              group = AU_carto$CAHlabs) %>%
+  addLayersControl(
+    baseGroups = c("Fond Simple", "Bati"),
+    overlayGroups = sort(c(AU_carto$CAHlabs)),
+    options = layersControlOptions(collapsed = FALSE)) 
+```
+
+# Tableau des AU
+
+Tableau détaillé des résultats de la typologie
+
+```{r}
+
+
+
+df <- AU_carto %>% 
+  st_drop_geometry() %>% 
+  relocate(CAHlabs, perimetre2, Ecart_profil_moyen_AU,Ecart_profil_DEP, .after = DEP) %>%
+   mutate(across(where(is.numeric), ~round(., 2)))
+
+
+sticky_style <- list(backgroundColor = "#f7f7f7")
+
+reactable(df, filterable = TRUE, minRows = 10,  striped = TRUE,
+            columns = list(
+    AU2010 = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    ),
+    LIBAU2010 = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    ),
+    DEP = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    ),
+    CAHlabs = colDef(
+      sticky = "left",
+      style = sticky_style,
+      headerStyle = sticky_style
+    )
+  ),
+  resizable = TRUE,
+  wrap = FALSE,
+  bordered = TRUE)
+
+
+```

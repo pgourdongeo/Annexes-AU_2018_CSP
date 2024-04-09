@@ -1,0 +1,28 @@
+Variable;Label
+C18_POP15P_CS10;10. Agriculteurs exploitants
+C18_POP15P_CS21;21. Artisans
+C18_POP15P_CS22;22. Commerçants et assimilés
+C18_POP15P_CS23;23. Chefs d'entreprise de 10 salariés ou plus
+C18_POP15P_CS31;31. Professions libérales et assimilés
+C18_POP15P_CS32;32. Cadres de la fonction publique, professions intellectuelles et  artistiques
+C18_POP15P_CS36;36. Cadres d'entreprise
+C18_POP15P_CS41;41. Professions intermédiaires de l'enseignement, de la santé, de la fonction publique et assimilés
+C18_POP15P_CS46;46. Professions intermédiaires administratives et commerciales des entreprises
+C18_POP15P_CS47;47. Techniciens
+C18_POP15P_CS48;48. Contremaîtres, agents de maîtrise
+C18_POP15P_CS51;51. Employés de la fonction publique
+C18_POP15P_CS54;54. Employés administratifs d'entreprise
+C18_POP15P_CS55;55. Employés de commerce
+C18_POP15P_CS56;56. Personnels des services directs aux particuliers
+C18_POP15P_CS61;61. Ouvriers qualifiés
+C18_POP15P_CS66;66. Ouvriers non qualifiés
+C18_POP15P_CS69;69. Ouvriers agricoles
+C18_CS7_CSA_1;71. Anciens agriculteurs
+C18_CS7_CSA_2;72. Anciens artisans, commerçants, chefs d’entreprise
+C18_CS7_CSA_3;73. Anciens cadres et professions intellectuelles supérieures
+C18_CS7_CSA_4;74. Anciens professions Intermédiaires
+C18_CS7_CSA_5;75. Anciens employés
+C18_CS7_CSA_6;76. Anciens ouvriers
+C18_CS7_CSA_Z;7Z. Non déclarés
+C18_POP15P_CS84;84. Elèves, étudiants
+C18_POP15P_CS81_85_86;87. chômeurs n'ayant jamais travaillé, personnes diverses sans activité professionnelle (sauf retraités)
